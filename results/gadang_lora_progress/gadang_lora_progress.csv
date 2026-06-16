@@ -1,0 +1,6 @@
+run_name,run_dir,image_count,learning_rate_slug,lora_rank,target_steps,latest_checkpoint_step,latest_checkpoint_label,checkpoint_count,final_adapter_exists,artifact_log_exists,run_complete_exists,training_complete,run_complete,status,actual_optimizer_steps,resumed_from_step
+20260616_110755_img10_lr1em4_rank4_steps2000,outputs/20260616_110755_img10_lr1em4_rank4_steps2000,10,1em4,4,2000,2000,step_2000,11,True,True,False,True,True,complete,2000,
+20260616_124613_img10_lr1em4_rank8_steps2000,outputs/20260616_124613_img10_lr1em4_rank8_steps2000,10,1em4,8,2000,2000,step_2000,11,True,False,False,True,False,training_complete_pending_finalization,2000,
+20260616_060708_img10_lr5em5_rank4_steps2000,outputs/20260616_060708_img10_lr5em5_rank4_steps2000,10,5em5,4,2000,2000,step_2000,11,True,True,False,True,True,complete,2000,
+20260616_074753_img10_lr5em5_rank8_steps2000,outputs/20260616_074753_img10_lr5em5_rank8_steps2000,10,5em5,8,2000,2000,step_2000,11,True,True,False,True,True,complete,2000,
+20260616_092859_img10_lr5em5_rank16_steps2000,outputs/20260616_092859_img10_lr5em5_rank16_steps2000,10,5em5,16,2000,2000,step_2000,11,True,True,False,True,True,complete,2000,

@@ -1,0 +1,26 @@
+[project]
+name = "traditional-house-instruct-pix2pix-lora"
+version = "0.1.0"
+description = "Fine-tune InstructPix2Pix with LoRA for Indonesian traditional house image editing."
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "torchvision",
+    "diffusers",
+    "transformers<5",
+    "accelerate",
+    "peft",
+    "datasets",
+    "pillow",
+    "matplotlib",
+    "pandas",
+    "tqdm",
+    "safetensors",
+    "protobuf",
+    "sentencepiece",
+    "huggingface_hub",
+    "ipykernel",
+    "nbconvert",
+    "pytorch-lightning",
+    "google-genai",
+]

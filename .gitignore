@@ -1,0 +1,46 @@
+# Python / local environment
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime logs
+output.log
+*.log
+
+# Local datasets and generated training pairs
+traditional_houses/
+data/
+dataset/
+datasets/
+dump_artifact/
+
+# Local model caches and downloaded pretrained weights
+models/
+!models/.gitkeep
+*.ckpt
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.onnx
+*.gguf
+
+# Hugging Face / Diffusers cache metadata
+.cache/
+**/.cache/
+
+# Heavy per-run artifacts
+outputs/**/checkpoints/
+outputs/**/concept_dataset/
+outputs/**/logs/
+outputs/**/notebook/
+outputs/**/run_output.log
+outputs/**/runner.log
+
+# Output evaluation images and lightweight summaries are intentionally not
+# ignored. The rules above only remove heavy checkpoints, copied concept
+# datasets, executed notebooks, and logs from each run folder.

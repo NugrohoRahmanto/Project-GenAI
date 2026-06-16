@@ -1,0 +1,52 @@
+{
+  "run_name": "20260616_110755_img10_lr1em4_rank4_steps2000",
+  "seed": 100,
+  "eval_images_per_class": 2,
+  "test_prompts": [
+    "replace the house with a realistic gadang traditional house from West Sumatra",
+    "transform this scene into a gadang house with iconic curved gonjong roof",
+    "make the main building look like gadang Minangkabau architecture"
+  ],
+  "test_images": [
+    {
+      "class_name": "Joglo",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/joglo/b-1.png",
+      "image_id": "joglo_01"
+    },
+    {
+      "class_name": "Joglo",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/joglo/raj (247).png",
+      "image_id": "joglo_02"
+    },
+    {
+      "class_name": "Honai",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/honai/honai (1).png",
+      "image_id": "honai_01"
+    },
+    {
+      "class_name": "Honai",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/honai/honai (375).png",
+      "image_id": "honai_02"
+    },
+    {
+      "class_name": "Panjang",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/panjang/b-109.png",
+      "image_id": "panjang_01"
+    },
+    {
+      "class_name": "Panjang",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/panjang/rak (366).png",
+      "image_id": "panjang_02"
+    },
+    {
+      "class_name": "Tongkonan",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/tongkonan/tongkonan (5).png",
+      "image_id": "tongkonan_01"
+    },
+    {
+      "class_name": "Tongkonan",
+      "image_path": "/home/nugee/code-program/tubes-GenAI/traditional_houses/tongkonan/tongkonan (1).png",
+      "image_id": "tongkonan_02"
+    }
+  ]
+}
