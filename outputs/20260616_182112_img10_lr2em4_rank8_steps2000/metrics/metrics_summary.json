@@ -1,0 +1,14 @@
+{
+  "run_name": "20260616_182112_img10_lr2em4_rank8_steps2000",
+  "method": "lora_concept",
+  "fid_original_vs_real_gadang": 267.17973026910636,
+  "fid_fine_tuned_vs_real_gadang": 225.91687570781914,
+  "diversity_original": 0.2815131277119781,
+  "diversity_fine_tuned": 0.2811354459314355,
+  "num_reference_images": 10,
+  "num_original_generated_images": 264,
+  "num_fine_tuned_generated_images": 264,
+  "clip_text_image_original_mean": null,
+  "clip_text_image_fine_tuned_mean": null,
+  "clip_error": "We couldn't connect to 'https://huggingface.co' to load the files, and couldn't find them in the cached files.\nCheck your internet connection or see how to run the library in offline mode at 'https://huggingface.co/docs/transformers/installation#offline-mode'."
+}

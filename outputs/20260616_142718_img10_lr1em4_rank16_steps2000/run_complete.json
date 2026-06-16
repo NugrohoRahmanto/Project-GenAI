@@ -1,0 +1,8 @@
+{
+  "run_name": "20260616_142718_img10_lr1em4_rank16_steps2000",
+  "completed_at": "2026-06-16T16:20:21",
+  "max_train_steps": 2000,
+  "actual_optimizer_steps": 2000,
+  "artifact_log": "/home/nugee/code-program/tubes-GenAI/outputs/20260616_142718_img10_lr1em4_rank16_steps2000/artifact_log.json",
+  "metrics_summary": "/home/nugee/code-program/tubes-GenAI/outputs/20260616_142718_img10_lr1em4_rank16_steps2000/metrics/metrics_summary.json"
+}
