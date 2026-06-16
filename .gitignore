@@ -34,13 +34,13 @@ models/
 **/.cache/
 
 # Heavy per-run artifacts
-outputs/**/checkpoints/
-outputs/**/concept_dataset/
-outputs/**/logs/
-outputs/**/notebook/
+outputs/*/checkpoints/
+outputs/*/concept_dataset/
+outputs/*/logs/
+outputs/*/notebook/
 outputs/**/run_output.log
 outputs/**/runner.log
 
 # Output evaluation images and lightweight summaries are intentionally not
-# ignored. The rules above only remove heavy checkpoints, copied concept
-# datasets, executed notebooks, and logs from each run folder.
+# ignored. In particular, outputs/*/evaluation/checkpoints/ remains trackable;
+# only the training checkpoints directly under each run folder are ignored.
