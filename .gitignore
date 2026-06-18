@@ -33,14 +33,12 @@ models/
 .cache/
 **/.cache/
 
-# Heavy per-run artifacts
-outputs/*/checkpoints/
-outputs/*/concept_dataset/
-outputs/*/logs/
-outputs/*/notebook/
-outputs/**/run_output.log
-outputs/**/runner.log
+# Runtime outputs are large and should stay local.
+outputs/
 
-# Output evaluation images and lightweight summaries are intentionally not
-# ignored. In particular, outputs/*/evaluation/checkpoints/ remains trackable;
-# only the training checkpoints directly under each run folder are ignored.
+# Keep curated result artifacts trackable.
+!results/
+!results/**
+
+# Never track compressed bundles, including under results/.
+*.zip

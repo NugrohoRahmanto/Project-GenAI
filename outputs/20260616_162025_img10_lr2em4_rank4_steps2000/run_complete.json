@@ -1,8 +1,0 @@
-{
-  "run_name": "20260616_162025_img10_lr2em4_rank4_steps2000",
-  "completed_at": "2026-06-16T18:21:09",
-  "max_train_steps": 2000,
-  "actual_optimizer_steps": 2000,
-  "artifact_log": "/home/nugee/code-program/tubes-GenAI/outputs/20260616_162025_img10_lr2em4_rank4_steps2000/artifact_log.json",
-  "metrics_summary": "/home/nugee/code-program/tubes-GenAI/outputs/20260616_162025_img10_lr2em4_rank4_steps2000/metrics/metrics_summary.json"
-}
