@@ -1,41 +1,169 @@
-# Gadang Identity Fine-Tuning
+# Gadang LoRA Concept Editing
 
-Project ini menguji apakah model diffusion bisa mempelajari konsep visual **Rumah Gadang** melalui keyword khusus `gadang`, lalu memakai konsep itu saat inference/editing.
+This project trains a **LoRA concept adapter** for the visual identity of **Rumah Gadang**, the traditional Minangkabau house from West Sumatra. The adapter is trained on **Stable Diffusion 1.5**, then the trained LoRA weights are loaded into the **InstructPix2Pix** editing pipeline for evaluation.
 
-Eksperimen utama membandingkan dua metode:
+In short:
 
-- **LoRA Concept Fine-Tuning**
-  - Notebook: `notebook/lora_concept_grid.ipynb`
-  - Runner: `scripts/run_gadang_lora_grid.sh`
-  - Training hanya menyimpan adapter LoRA.
-  - Evaluasi memakai InstructPix2Pix image editing.
+```text
+Rumah Gadang images + caption token "gadang"
+        -> LoRA concept training on Stable Diffusion 1.5
+        -> LoRA adapter
+        -> evaluated inside InstructPix2Pix image editing
+```
 
-- **DreamBooth-Style Fine-Tuning**
-  - Notebook: `notebook/dreambooth_grid.ipynb`
-  - Runner: `scripts/run_gadang_dreambooth_grid.sh`
-  - Training menyimpan pipeline/UNet fine-tuned.
-  - Evaluasi memakai Stable Diffusion img2img.
-  - Trainable UNet disimpan dalam `float32` saat mixed precision aktif agar tidak memicu error `Attempting to unscale FP16 gradients`.
+This is not full InstructPix2Pix fine-tuning. The goal is to teach a reusable visual concept token, `gadang`, and test whether the edit model can use that concept when the prompt asks it to turn another traditional house into a Gadang-style house.
 
-Kedua workflow memakai seed, split, jumlah data, file evaluasi, dan prompt evaluasi yang sama agar perbandingan LoRA vs DreamBooth lebih fair.
+## InstructPix2Pix Reference
 
-## Project Layout
+InstructPix2Pix is an instruction-following image editing model. Given an input image and a text instruction, it edits the image to follow the instruction.
+
+The examples below are from the original CVPR paper, [InstructPix2Pix: Learning to Follow Image Editing Instructions](https://openaccess.thecvf.com/content/CVPR2023/papers/Brooks_InstructPix2Pix_Learning_To_Follow_Image_Editing_Instructions_CVPR_2023_paper.pdf). A local copy is also available at [pdf/Brooks_InstructPix2Pix_Learning_To_Follow_Image_Editing_Instructions_CVPR_2023_paper.pdf](pdf/Brooks_InstructPix2Pix_Learning_To_Follow_Image_Editing_Instructions_CVPR_2023_paper.pdf).
+
+## Paper Results
+
+The original paper shows that InstructPix2Pix can edit real images from natural-language instructions without per-example inversion or fine-tuning.
+
+![InstructPix2Pix paper examples](images/instructpix2pix_paperPicture.png)
+
+## Training in the Paper
+
+The original InstructPix2Pix training process uses paired editing data:
+
+```text
+input image + edit instruction -> edited target image
+```
+
+The paper generates this training data with text edits and paired images, then trains an instruction-following diffusion model.
+
+![InstructPix2Pix training pipeline](images/training-pix2pix.png)
+
+## Mathematical Paper Approach
+
+InstructPix2Pix is trained as a conditional latent diffusion model. For a target edited image `x`, the VAE encoder `E` maps the image into a latent representation:
+
+```text
+z = E(x)
+```
+
+Noise is added at timestep `t` to produce `z_t`. The network then predicts the added noise from three inputs:
+
+```text
+z_t  = noisy edited-image latent
+c_I  = input image conditioning
+c_T  = text edit instruction conditioning
+```
+
+The training loss from the paper is the denoising objective:
+
+```text
+L = E[ || epsilon - epsilon_theta(z_t, t, E(c_I), c_T) ||_2^2 ]
+```
+
+where `epsilon` is sampled Gaussian noise and `epsilon_theta` is the model prediction. Intuitively, the model learns to remove noise from the target edited image latent while being guided by both the original image and the edit instruction.
+
+The paper also uses classifier-free guidance with two conditioning sources. A simplified single-conditioning form is:
+
+```text
+e_tilde_theta(z_t, c)
+  = e_theta(z_t, empty)
+    + s * (e_theta(z_t, c) - e_theta(z_t, empty))
+```
+
+For InstructPix2Pix, there are two guidance scales:
+
+```text
+s_I = image guidance scale
+s_T = text guidance scale
+```
+
+The paper's two-conditioning guidance can be written as:
+
+```text
+e_tilde_theta(z_t, c_I, c_T)
+  = e_theta(z_t, empty, empty)
+    + s_I * (e_theta(z_t, c_I, empty) - e_theta(z_t, empty, empty))
+    + s_T * (e_theta(z_t, c_I, c_T) - e_theta(z_t, c_I, empty))
+```
+
+In simple terms, `s_I` controls how much the output preserves the input image structure, while `s_T` controls how strongly the edit instruction is applied.
+
+## Concept Fine-Tuning in This Project
+
+This repository does not mainly follow the full paired-image fine-tuning setup from the paper. Instead, it uses a lighter concept-learning setup:
+
+```text
+real Rumah Gadang images + captions containing "gadang"
+        -> train LoRA concept adapter on Stable Diffusion 1.5
+        -> load the LoRA adapter into InstructPix2Pix for editing evaluation
+```
+
+So the model is not trained with paired edit examples such as `before image -> after image`. Instead, it learns the visual meaning of the token `gadang`, then that token is used inside editing prompts.
+
+LoRA concept training teaches a model that a special word or phrase corresponds to a visual concept. In this project, the important token is:
+
+```text
+gadang
+```
+
+Training captions repeatedly connect this token to real Rumah Gadang images, for example:
+
+```text
+a photo of gadang
+traditional Minangkabau gadang house
+wooden gadang house with curved roof
+```
+
+Compared with ordinary LoRA fine-tuning, this setup is concept-centered:
+
+- **LoRA concept training**: learns a visual identity behind a token such as `gadang`.
+- **Ordinary LoRA fine-tuning**: may adapt style, domain, or task behavior more broadly.
+- **Full fine-tuning**: updates many more model weights and is heavier to train and store.
+
+This repository only keeps LoRA concept training instructions in this README. DreamBooth notes are moved to [DREAMBOOTH.md](DREAMBOOTH.md).
+
+## Fine-Tuning Results
+
+### Success Case: Tongkonan
+
+Tongkonan houses already have a strong roof silhouette, so the model often adapts them better into the Gadang visual identity.
+
+![Tongkonan 01 success](images/tongkonan_01_step_1000_20260618_033424_img25_lr2em4_rank8_steps2000_horizontal_evaluation.png)
+
+![Tongkonan 02 success](images/tongkonan_02_step_1000_20260618_033424_img25_lr2em4_rank8_steps2000_horizontal_evaluation.png)
+
+### Failure Case: Honai
+
+Honai houses are much more difficult for this pipeline. Their round, compact structure is significantly different from Rumah Gadang's elongated body and curved roof. Because of that, InstructPix2Pix often cannot inpaint the requested Gadang structure cleanly from a Honai input.
+
+![Honai 01 failure](images/honai_01_step_2000_20260616_060708_img10_lr5em5_rank4_steps2000_horizontal_evaluation.png)
+
+![Honai 02 failure](images/honai_02_step_2000_20260616_060708_img10_lr5em5_rank4_steps2000_horizontal_evaluation.png)
+
+## Technical Setup and Training Process
+
+### References
+
+- InstructPix2Pix official GitHub: https://github.com/timothybrooks/instruct-pix2pix
+- InstructPix2Pix CVPR 2023 paper: https://openaccess.thecvf.com/content/CVPR2023/papers/Brooks_InstructPix2Pix_Learning_To_Follow_Image_Editing_Instructions_CVPR_2023_paper.pdf
+- Local InstructPix2Pix PDF: [pdf/Brooks_InstructPix2Pix_Learning_To_Follow_Image_Editing_Instructions_CVPR_2023_paper.pdf](pdf/Brooks_InstructPix2Pix_Learning_To_Follow_Image_Editing_Instructions_CVPR_2023_paper.pdf)
+- InstructPix2Pix Hugging Face model: https://huggingface.co/timbrooks/instruct-pix2pix
+- Hugging Face Diffusers InstructPix2Pix pipeline docs: https://huggingface.co/docs/diffusers/en/api/pipelines/pix2pix
+- Hugging Face Diffusers LoRA training docs: https://huggingface.co/docs/diffusers/en/training/lora
+- Diffusers LoRA training script: https://github.com/huggingface/diffusers/blob/main/examples/text_to_image/train_text_to_image_lora.py
+- Stable Diffusion 1.5 Hugging Face model: https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5
+
+### Project Layout
 
 ```text
 notebook/
   lora_concept_grid.ipynb
-  dreambooth_grid.ipynb
-  generate_instructpix2pix_finetune_images.ipynb
-  instructpix2pix_lora_grid.ipynb
-  instructpix2pix_dreambooth_grid.ipynb
+  evaluation_grid_summary/gadang_eval_grid_summary.ipynb
 
 scripts/
   run_gadang_lora_grid.sh
-  run_gadang_dreambooth_grid.sh
-  generate_instructpix2pix_finetune_images.sh
-  run_gadang_train_pix2pix_lora_grid.sh
-  run_gadang_train_pix2pix_dreambooth_grid.sh
-  summarize_gadang_experiments.py
+  audit_gadang_lora_progress.py
+  generate_gadang_eval_grids.py
+  run_gadang_eval_grid_summary.sh
 
 traditional_houses/
   gadang/
@@ -45,7 +173,7 @@ traditional_houses/
   tongkonan/
 
 outputs/
-  yyyymmdd_hhmmss_<scheme>/
+  yyyymmdd_hhmmss_img10_lr1em4_rank8_steps2000/
     concept_dataset/
     checkpoints/
     evaluation/
@@ -54,37 +182,48 @@ outputs/
     notebook/
 
 results/
-  gadang_experiment_summary/
+  gadang_evaluation_grids/
+  gadang_lora_progress/
 ```
 
-## Setup
+`outputs/` is intentionally ignored by Git because it contains heavy run artifacts. Curated figures and summaries are stored in `results/`.
 
-Install dependency:
+### Setup
+
+Install dependencies:
 
 ```bash
 uv sync
 ```
 
-Workflow utama sekarang memakai checkpoint lokal, sehingga tidak perlu login Hugging Face untuk training/evaluasi LoRA dan DreamBooth Stable Diffusion.
-
-Pastikan file berikut tersedia:
+Prepare local checkpoints:
 
 ```text
 models/v1-5-pruned-emaonly.ckpt
 models/instruct-pix2pix-00-22000.ckpt
-models/flux-fill-nf4/
-models/sdxl-inpainting/sd_xl_base_1.0_inpainting_0.1.safetensors
 ```
 
-## Dataset
+The LoRA training notebook loads Stable Diffusion 1.5 from:
 
-Dataset utama diletakkan di:
+```text
+models/v1-5-pruned-emaonly.ckpt
+```
+
+The evaluation pipeline loads InstructPix2Pix from:
+
+```text
+models/instruct-pix2pix-00-22000.ckpt
+```
+
+### Dataset
+
+Place real Rumah Gadang images here:
 
 ```text
 traditional_houses/gadang/
 ```
 
-Folder evaluasi pembanding:
+Place comparison/evaluation images here:
 
 ```text
 traditional_houses/joglo/
@@ -93,19 +232,17 @@ traditional_houses/panjang/
 traditional_houses/tongkonan/
 ```
 
-Untuk evaluasi Tongkonan, pipeline memprioritaskan file:
+The pipeline uses deterministic train, validation, and test splits. For Tongkonan evaluation, it prioritizes:
 
 ```text
 traditional_houses/tongkonan/tongkonan (5).png
 ```
 
-Semua gambar akan di-resize dengan center-crop, bukan diberi border putih.
+The file `tongkonan (1).png` is excluded from evaluation.
 
-## Smoke Test
+### Smoke Test
 
-Gunakan smoke test 1 step untuk memastikan training, checkpoint, logging, dan evaluasi bisa jalan.
-
-### LoRA
+Run a tiny LoRA job to check training, checkpointing, logging, and evaluation:
 
 ```bash
 IMAGE_COUNTS="10" LEARNING_RATES="1e-4" LORA_RANKS="8" \
@@ -115,170 +252,40 @@ EVAL_IMAGES_PER_CLASS=1 EVAL_PROMPT_COUNT=2 EVAL_NUM_INFERENCE_STEPS=5 \
 scripts/run_gadang_lora_grid.sh
 ```
 
-### DreamBooth
-
-```bash
-IMAGE_COUNTS="10" LEARNING_RATES="1e-5" DREAMBOOTH_SCOPES="8" \
-MAX_TRAIN_STEPS=1 CHECKPOINT_EVERY=1 \
-RUN_EVALUATION=1 RUN_METRICS=0 \
-EVAL_IMAGES_PER_CLASS=1 EVAL_PROMPT_COUNT=2 EVAL_NUM_INFERENCE_STEPS=5 \
-scripts/run_gadang_dreambooth_grid.sh
-```
-
-## Generate InstructPix2Pix Fine-Tuning Pairs
-
-Sebelum fine-tune InstructPix2Pix, kamu bisa membuat pasangan data editing dari gambar rumah tradisional asli. Generator ini memilih 50 gambar source secara deterministik dari kelas non-Gadang, membuat mask edit, lalu menghasilkan target edit dengan dua model:
-
-```text
-flux_fill_nf4
-sdxl_inpainting
-```
-
-Command utama:
-
-```bash
-nohup scripts/generate_instructpix2pix_finetune_images.sh >/dev/null 2>&1 &
-```
-
-Pantau dengan:
+Watch the root log:
 
 ```bash
 tail -f output.log
 ```
 
-Konfigurasi yang bisa diubah:
+### Full LoRA Grid
 
-```bash
-SOURCE_IMAGES=50
-GENERATION_MODELS="flux_fill_nf4 sdxl_inpainting"
-GENERATION_RESOLUTION=1024
-GENERATION_STEPS=30
-GENERATION_GUIDANCE_SCALE=7.5
-GENERATION_STRENGTH=0.95
-FLUX_FILL_DIR="models/flux-fill-nf4"
-SDXL_INPAINT_CKPT="models/sdxl-inpainting/sd_xl_base_1.0_inpainting_0.1.safetensors"
-```
-
-Output:
-
-```text
-outputs/<timestamp>_train_pix2pix_dataset_img50/
-  generated_instructpix2pix_dataset/
-    input_images/
-    masks/
-    edited_images/
-      flux_fill_nf4/
-      sdxl_inpainting/
-    comparison_grids/
-    source_manifest.json
-    metadata.jsonl
-    generation_manifest.json
-```
-
-`metadata.jsonl` berisi pasangan `input_image`, `mask_image`, `edited_image`, dan `edit_prompt` untuk fine-tune InstructPix2Pix.
-
-## Train Pix2Pix From Generated Pairs
-
-Setelah dataset generator menghasilkan `generated_instructpix2pix_dataset/metadata.jsonl`, dua runner berikut bisa langsung fine-tune InstructPix2Pix memakai pasangan:
-
-```text
-input_image + edit_prompt -> edited_image
-```
-
-Smoke test LoRA:
-
-```bash
-PAIR_COUNTS="50" LEARNING_RATES="1e-4" LORA_RANKS="8" \
-MAX_TRAIN_STEPS=1 CHECKPOINT_EVERY=1 \
-RUN_EVALUATION=1 RUN_METRICS=0 EVAL_PAIR_COUNT=2 EVAL_NUM_INFERENCE_STEPS=5 \
-scripts/run_gadang_train_pix2pix_lora_grid.sh
-```
-
-Smoke test DreamBooth-style:
-
-```bash
-PAIR_COUNTS="50" LEARNING_RATES="1e-5" DREAMBOOTH_SCOPES="8" \
-MAX_TRAIN_STEPS=1 CHECKPOINT_EVERY=1 \
-RUN_EVALUATION=1 RUN_METRICS=0 EVAL_PAIR_COUNT=2 EVAL_NUM_INFERENCE_STEPS=5 \
-scripts/run_gadang_train_pix2pix_dreambooth_grid.sh
-```
-
-Jika ingin menunjuk metadata tertentu:
-
-```bash
-TRAIN_PIX2PIX_METADATA="outputs/<run>/generated_instructpix2pix_dataset/metadata.jsonl" \
-scripts/run_gadang_train_pix2pix_lora_grid.sh
-```
-
-Filter pasangan berdasarkan model generator:
-
-```bash
-TRAIN_PIX2PIX_GENERATORS="sdxl_inpainting"
-TRAIN_PIX2PIX_GENERATORS="flux_fill_nf4 sdxl_inpainting"
-```
-
-Output run train-pix2pix:
-
-```text
-outputs/<timestamp>_train_pix2pix_lora_pairs50_<scheme>/
-outputs/<timestamp>_train_pix2pix_dreambooth_pairs50_<scheme>/
-```
-
-## Full Grid Runs
-
-LoRA default grid:
+Default grid:
 
 ```text
 IMAGE_COUNTS="10 25 50"
 LEARNING_RATES="5e-5 1e-4 2e-4"
 LORA_RANKS="4 8 16"
-STABLE_DIFFUSION_CKPT="models/v1-5-pruned-emaonly.ckpt"
 MAX_TRAIN_STEPS=2000
 CHECKPOINT_EVERY=200
 ```
 
-Jalankan LoRA:
+Run the full grid:
 
 ```bash
 nohup scripts/run_gadang_lora_grid.sh >/dev/null 2>&1 &
 ```
 
-DreamBooth default grid:
+The runner skips completed runs and resumes partial runs from the latest saved LoRA checkpoint when possible.
 
-```text
-IMAGE_COUNTS="10 25 50"
-LEARNING_RATES="5e-6 1e-5 2e-5"
-DREAMBOOTH_SCOPES="4 8 16"
-STABLE_DIFFUSION_CKPT="models/v1-5-pruned-emaonly.ckpt"
-MAX_TRAIN_STEPS=2000
-CHECKPOINT_EVERY=200
-```
+### Runtime Options
 
-Jalankan DreamBooth:
-
-```bash
-nohup scripts/run_gadang_dreambooth_grid.sh >/dev/null 2>&1 &
-```
-
-Jalankan LoRA train-pix2pix full grid:
-
-```bash
-nohup scripts/run_gadang_train_pix2pix_lora_grid.sh >/dev/null 2>&1 &
-```
-
-Jalankan DreamBooth train-pix2pix full grid:
-
-```bash
-nohup scripts/run_gadang_train_pix2pix_dreambooth_grid.sh >/dev/null 2>&1 &
-```
-
-## Runtime Options
-
-Opsi umum untuk kedua runner:
+Common options:
 
 ```bash
 IMAGE_COUNTS="10 25 50"
 LEARNING_RATES="5e-5 1e-4 2e-4"
+LORA_RANKS="4 8 16"
 STABLE_DIFFUSION_CKPT="models/v1-5-pruned-emaonly.ckpt"
 INSTRUCT_PIX2PIX_CKPT="models/instruct-pix2pix-00-22000.ckpt"
 MAX_TRAIN_STEPS=2000
@@ -294,154 +301,93 @@ SKIP_EXISTING=1
 ROOT_LOG=output.log
 ```
 
-Opsi khusus LoRA:
+Example custom run:
 
 ```bash
-LORA_RANKS="4 8 16"
+IMAGE_COUNTS="25" LEARNING_RATES="1e-4" LORA_RANKS="16" \
+MAX_TRAIN_STEPS=2000 CHECKPOINT_EVERY=200 \
+scripts/run_gadang_lora_grid.sh
 ```
 
-Opsi khusus DreamBooth:
+### Checkpoints
 
-```bash
-DREAMBOOTH_SCOPES="4 8 16"
-EVAL_IMAGE_GUIDANCE_SCALE=1.5
-EVAL_STRENGTH=0.75
-```
+Training is controlled by optimizer steps, not epochs.
 
-## Logging
-
-Setiap run menulis log ke root dan folder run:
-
-```text
-output.log
-outputs/<run_name>/logs/runner.log
-outputs/<run_name>/logs/run_output.log
-```
-
-`output.log` di root akan ditimpa setiap run baru. Pantau dengan:
-
-```bash
-tail -f output.log
-```
-
-Nama run selalu memakai timestamp:
-
-```text
-outputs/yyyymmdd_hhmmss_img10_lr1em4_rank8_steps2000/
-outputs/yyyymmdd_hhmmss_img10_lr1em5_scope8_steps2000/
-```
-
-## Checkpoints
-
-Training dikontrol dengan optimizer step, bukan epoch. Default:
-
-```text
-STABLE_DIFFUSION_CKPT="models/v1-5-pruned-emaonly.ckpt"
-MAX_TRAIN_STEPS=2000
-CHECKPOINT_EVERY=200
-```
-
-LoRA dan DreamBooth memuat Stable Diffusion dari checkpoint lokal tersebut dengan `from_single_file`. Jika file tidak ada, notebook akan berhenti dengan pesan error yang eksplisit.
-
-LoRA evaluation juga memuat InstructPix2Pix dari checkpoint lokal:
-
-```text
-INSTRUCT_PIX2PIX_CKPT="models/instruct-pix2pix-00-22000.ckpt"
-```
-
-LoRA checkpoint:
+LoRA checkpoints are saved every `CHECKPOINT_EVERY` steps:
 
 ```text
 outputs/<run_name>/checkpoints/step_0200/lora_adapter/
 outputs/<run_name>/checkpoints/step_0400/lora_adapter/
 ...
+outputs/<run_name>/checkpoints/step_2000/lora_adapter/
 outputs/<run_name>/checkpoints/final/lora_adapter/
 ```
 
-LoRA juga menyimpan path kompatibilitas untuk checkpoint final:
+The final adapter is also copied to:
 
 ```text
 outputs/<run_name>/checkpoints/lora_adapter/
 ```
 
-DreamBooth checkpoint:
-
-```text
-outputs/<run_name>/checkpoints/step_0200/pipeline/
-outputs/<run_name>/checkpoints/step_0200/unet/
-...
-outputs/<run_name>/checkpoints/final/pipeline/
-outputs/<run_name>/checkpoints/final/unet/
-```
-
-DreamBooth juga menyimpan path kompatibilitas untuk checkpoint final:
-
-```text
-outputs/<run_name>/checkpoints/pipeline/
-outputs/<run_name>/checkpoints/unet/
-```
-
-Daftar checkpoint disimpan di:
+Checkpoint metadata:
 
 ```text
 outputs/<run_name>/checkpoints/checkpoints_manifest.json
 ```
 
-## Evaluation Output
+### Evaluation
 
-Jika `RUN_EVALUATION=1`, evaluasi dibuat untuk setiap checkpoint yang tersimpan.
+Evaluation loads the base InstructPix2Pix checkpoint and attaches the trained LoRA adapter to its UNet.
 
-Output per checkpoint:
+For each saved checkpoint, the notebook creates:
 
 ```text
 outputs/<run_name>/evaluation/checkpoints/<checkpoint_label>/generated_images/
 outputs/<run_name>/evaluation/checkpoints/<checkpoint_label>/grids/
-```
-
-Manifest dan record evaluasi:
-
-```text
 outputs/<run_name>/evaluation/eval_manifest.json
 outputs/<run_name>/evaluation/evaluation_records.json
 ```
 
-Grid per checkpoint berisi kolom:
+Each per-checkpoint grid uses:
 
 ```text
-input | original/base model | fine-tuned checkpoint
+input | original InstructPix2Pix | LoRA fine-tuned output
 ```
 
-LoRA memakai InstructPix2Pix sebagai base edit pipeline. DreamBooth memakai Stable Diffusion img2img. Keduanya memakai file input dan prompt evaluasi yang sama.
+### Result Grids
 
-## Run Artifacts
+After several runs finish, generate summary grids across all checkpoints and schemes:
 
-Setiap run menghasilkan struktur berikut:
+```bash
+scripts/run_gadang_eval_grid_summary.sh
+```
+
+Output:
 
 ```text
-outputs/<run_name>/run_config.json
-outputs/<run_name>/artifact_log.json
-outputs/<run_name>/concept_dataset/metadata.jsonl
-outputs/<run_name>/concept_dataset/split_manifest.json
-outputs/<run_name>/checkpoints/checkpoints_manifest.json
-outputs/<run_name>/evaluation/eval_manifest.json
-outputs/<run_name>/evaluation/evaluation_records.json
-outputs/<run_name>/evaluation/checkpoints/
-outputs/<run_name>/metrics/metrics_summary.json
-outputs/<run_name>/metrics/training_loss.csv
-outputs/<run_name>/logs/runner.log
-outputs/<run_name>/logs/run_output.log
-outputs/<run_name>/notebook/<run_name>.ipynb
+results/gadang_evaluation_grids/img10/
+results/gadang_evaluation_grids/img25/
+results/gadang_evaluation_grids/img50/
+results/gadang_evaluation_grids/grid_manifest.csv
 ```
 
-## Metrics
+The summary grid format is:
 
-Notebook menghitung metrik berikut jika `RUN_METRICS=1`:
+```text
+Input | Original Instruct | step 0200 | step 0400 | ... | step 2000
+```
 
-- FID terhadap held-out real Gadang images
-- CLIP text-image similarity jika CLIP berhasil dimuat
-- image diversity score sederhana
+Rows are grouped by LoRA scheme and prompt.
 
-Kolom metrik LoRA:
+### Metrics
+
+When `RUN_METRICS=1`, the notebook computes:
+
+- FID against held-out real Gadang reference images
+- CLIP text-image similarity if the local CLIP model can be loaded
+- simple image diversity score
+
+Important LoRA metric fields:
 
 ```text
 fid_original_vs_real_gadang
@@ -450,43 +396,12 @@ clip_text_image_original_mean
 clip_text_image_fine_tuned_mean
 ```
 
-Kolom metrik DreamBooth:
+Lower FID is better. Higher CLIP text-image similarity is better.
 
-```text
-fid_original_vs_real_gadang
-fid_dreambooth_vs_real_gadang
-clip_text_image_original_mean
-clip_text_image_dreambooth_mean
-```
+## Conclusion
 
-Interpretasi umum:
+This project shows that LoRA concept training can introduce the visual identity of Rumah Gadang into an editing workflow without fully fine-tuning InstructPix2Pix. By training a small adapter on Stable Diffusion 1.5 and evaluating it inside InstructPix2Pix, the pipeline can test whether the token `gadang` becomes useful for image editing prompts.
 
-```text
-FID lebih rendah lebih baik.
-CLIP text-image similarity lebih tinggi lebih baik.
-```
+The qualitative results suggest that the method works better when the input house already has a related architectural structure. Tongkonan is a stronger success case because its roof silhouette is closer to the curved, expressive roof shape of Rumah Gadang. Honai is a common failure case because its compact round form is structurally very different, so the edit model often cannot transform it into a clean Gadang-style building.
 
-## Summarize Results
-
-Setelah beberapa run selesai:
-
-```bash
-uv run python scripts/summarize_gadang_experiments.py
-```
-
-Output summary:
-
-```text
-results/gadang_experiment_summary/gadang_lora_vs_dreambooth_metrics.csv
-```
-
-## Fair Comparison Rules
-
-- LoRA dan DreamBooth memakai seed yang sama.
-- Split train/val/test Gadang dibuat deterministik.
-- Jumlah concept image dikontrol oleh `IMAGE_COUNTS`.
-- Jumlah step dikontrol oleh `MAX_TRAIN_STEPS`.
-- Evaluasi memakai jumlah gambar yang sama dari `EVAL_IMAGES_PER_CLASS`.
-- Evaluasi memakai jumlah prompt yang sama dari `EVAL_PROMPT_COUNT`.
-- Tongkonan eval memprioritaskan `tongkonan (5).png`.
-- Semua output run disimpan di satu folder `outputs/<run_name>/`.
+Overall, LoRA concept training is a lightweight and practical approach for learning a cultural architectural identity from a limited dataset. However, for large structural edits, paired image-edit training or stronger inpainting supervision may still be needed.
