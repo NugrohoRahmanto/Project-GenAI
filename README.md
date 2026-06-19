@@ -99,6 +99,16 @@ real Rumah Gadang images + captions containing "gadang"
 
 So the model is not trained with paired edit examples such as `before image -> after image`. Instead, it learns the visual meaning of the token `gadang`, then that token is used inside editing prompts.
 
+The experiment trains **27 LoRA concept schemes**:
+
+```text
+3 image counts    x  3 learning rates      x  3 LoRA ranks
+10, 25, 50        x  5e-5, 1e-4, 2e-4      x  4, 8, 16
+= 27 trained LoRA adapters
+```
+
+This grid is used to observe how dataset size, learning rate, and LoRA rank affect the ability to learn the Gadang visual concept.
+
 LoRA concept training teaches a model that a special word or phrase corresponds to a visual concept. In this project, the important token is:
 
 ```text
